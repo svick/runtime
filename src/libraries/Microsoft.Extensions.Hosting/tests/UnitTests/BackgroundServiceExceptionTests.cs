@@ -141,15 +141,19 @@ namespace Microsoft.Extensions.Hosting.Tests
                     {
                         options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.StopHost;
                     });
-                    services.AddHostedService<AsynchronousFailureService>();
+                    services.AddHostedService<FirstAsynchronousFailureService>();
                     services.AddHostedService<SecondAsynchronousFailureService>();
                     services.AddHostedService<ThirdAsynchronousFailureService>();
                 });
+
+            Console.WriteLine("BackgroundService_MultipleExceptions_ThrowsAggregateException: starting host.");
 
             var aggregateException = await Assert.ThrowsAsync<AggregateException>(async () =>
             {
                 await builder.Build().RunAsync();
             });
+
+            Console.WriteLine("AggregateException caught.");
 
             Assert.Equal(3, aggregateException.InnerExceptions.Count);
 
@@ -304,6 +308,23 @@ namespace Microsoft.Extensions.Hosting.Tests
                 // Await before throwing to make the exception asynchronous
                 // Ignore the cancellation token to ensure this service throws even if the host is trying to shut down
                 await Task.Delay(TimeSpan.FromMilliseconds(100));
+
+                throw new InvalidOperationException("Asynchronous failure");
+            }
+        }
+
+        private class FirstAsynchronousFailureService : BackgroundService
+        {
+            protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+            {
+                Console.WriteLine("FirstAsynchronousFailureService starting.");
+
+                // Await before throwing to make the exception asynchronous
+                // Ignore the cancellation token to ensure this service throws even if the host is trying to shut down
+                await Task.Delay(TimeSpan.FromMilliseconds(100));
+
+                Console.WriteLine("FirstAsynchronousFailureService failing.");
+
                 throw new InvalidOperationException("Asynchronous failure");
             }
         }
@@ -312,8 +333,13 @@ namespace Microsoft.Extensions.Hosting.Tests
         {
             protected override async Task ExecuteAsync(CancellationToken stoppingToken)
             {
+                Console.WriteLine("SecondAsynchronousFailureService starting.");
+
                 // Ignore the cancellation token to ensure this service throws even if the host is trying to shut down
                 await Task.Delay(TimeSpan.FromMilliseconds(150));
+
+                Console.WriteLine("SecondAsynchronousFailureService failing.");
+
                 throw new InvalidOperationException("Second asynchronous failure");
             }
         }
@@ -322,8 +348,13 @@ namespace Microsoft.Extensions.Hosting.Tests
         {
             protected override async Task ExecuteAsync(CancellationToken stoppingToken)
             {
+                Console.WriteLine("ThirdAsynchronousFailureService starting.");
+
                 // Ignore the cancellation token to ensure this service throws even if the host is trying to shut down
                 await Task.Delay(TimeSpan.FromMilliseconds(200));
+
+                Console.WriteLine("ThirdAsynchronousFailureService failing.");
+
                 throw new InvalidOperationException("Third asynchronous failure");
             }
         }
