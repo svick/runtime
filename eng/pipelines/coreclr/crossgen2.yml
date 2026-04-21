@@ -94,6 +94,40 @@ extends:
             nameSuffix: TestReadyToRun_Libraries
             timeoutInMinutes: 360
             postBuildSteps:
+              # Diagnostic for dotnet/runtime#126930: dump R2R disassembly of methods involved in OOM failures.
+              # Extract the R2R hosting DLL from the test archive and run r2rdump on it.
+              - script: |
+                  set -ex
+                  r2rdump_dir="$(Build.SourcesDirectory)/artifacts/bin/coreclr/$(osGroup).$(archType).Release/R2RDump"
+                  archive=$(find $(Build.SourcesDirectory)/artifacts -path "*/helix/tests/*" -name "Microsoft.Extensions.Hosting.Unit.Tests.zip" 2>/dev/null | head -1)
+                  if [[ -z "$archive" ]]; then
+                    echo "Test archive not found, skipping r2rdump"
+                    exit 0
+                  fi
+                  tmpdir=$(mktemp -d)
+                  unzip -q "$archive" Microsoft.Extensions.Hosting.dll -d "$tmpdir" || true
+                  dll="$tmpdir/Microsoft.Extensions.Hosting.dll"
+                  if [[ ! -f "$dll" ]]; then
+                    echo "Microsoft.Extensions.Hosting.dll not found in archive"
+                    ls -la "$tmpdir"
+                    exit 0
+                  fi
+                  echo "=== R2R dump of UseDefaultServiceProvider and UseServiceProviderFactory ==="
+                  dotnet "$r2rdump_dir/R2RDump.dll" --in "$dll" --disasm -q UseDefaultServiceProvider -q UseServiceProviderFactory || true
+                  # Also dump the 4 failing test methods from the test assembly
+                  testdll="$tmpdir/Microsoft.Extensions.Hosting.Unit.Tests.dll"
+                  unzip -q "$archive" Microsoft.Extensions.Hosting.Unit.Tests.dll -d "$tmpdir" || true
+                  if [[ -f "$testdll" ]]; then
+                    echo "=== R2R dump of failing test methods ==="
+                    dotnet "$r2rdump_dir/R2RDump.dll" --in "$testdll" --disasm \
+                      -q ScopeValidationtEnabledInDevelopmentWithServiceProviderChanges \
+                      -q ScopeValidationNotEnabledInDevelopmentWithServiceProviderChanges \
+                      -q ValidateOnBuildNotEnabledInDevelopmentWithServiceProviderChanges \
+                      -q ConfigureDefaultServiceProvider || true
+                  fi
+                  rm -rf "$tmpdir"
+                displayName: 'R2R Dump - Hosting methods (dotnet/runtime#126930)'
+                continueOnError: true
               - template: /eng/pipelines/libraries/helix.yml
                 parameters:
                   creator: dotnet-bot

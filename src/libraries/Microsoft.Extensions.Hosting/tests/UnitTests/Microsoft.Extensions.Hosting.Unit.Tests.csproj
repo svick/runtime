@@ -9,6 +9,14 @@
     <EventSourceSupport Condition="'$(TestNativeAot)' == 'true'">true</EventSourceSupport>
   </PropertyGroup>
 
+  <!-- Temporary diagnostic: dump JIT disassembly for methods involved in OOM failures (dotnet/runtime#126930).
+       With R2R, JitDisasm fires for methods that get re-JIT'd via tiered compilation. -->
+  <Target Name="AddJitDisasmForOomDiagnosis" BeforeTargets="GenerateRunScript">
+    <ItemGroup>
+      <SetScriptCommands Include="$(EnvVarCommand) DOTNET_JitDisasm=UseDefaultServiceProvider UseServiceProviderFactory ScopeValidationtEnabledInDevelopmentWithServiceProviderChanges ScopeValidationNotEnabledInDevelopmentWithServiceProviderChanges ValidateOnBuildNotEnabledInDevelopmentWithServiceProviderChanges ConfigureDefaultServiceProvider" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <Compile Include="$(CommonTestPath)System\IO\TempDirectory.cs" Link="Common\System\IO\TempDirectory.cs" />
     <Compile Include="$(CommonTestPath)System\Threading\Tasks\TaskTimeoutExtensions.cs" Link="Common\System\Threading\Tasks\TaskTimeoutExtensions.cs" />
