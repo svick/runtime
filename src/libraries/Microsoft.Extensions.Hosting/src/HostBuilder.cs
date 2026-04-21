@@ -123,6 +123,8 @@ namespace Microsoft.Extensions.Hosting
         {
             ArgumentNullException.ThrowIfNull(factory);
 
+            Console.WriteLine($"[OOM-TRACE] UseServiceProviderFactory(Func<>) called | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             _serviceProviderFactory = new ServiceFactoryAdapter<TContainerBuilder>(() => _hostBuilderContext!, factory);
             _defaultProviderFactoryUsed = false;
             return this;
@@ -161,11 +163,23 @@ namespace Microsoft.Extensions.Hosting
             // stash this in a field.
             using DiagnosticListener diagnosticListener = LogHostBuilding(this);
 
+            Console.WriteLine($"[OOM-TRACE] Build: InitializeHostConfiguration | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             InitializeHostConfiguration();
+            Console.WriteLine($"[OOM-TRACE] Build: InitializeHostingEnvironment | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             InitializeHostingEnvironment();
+            Console.WriteLine($"[OOM-TRACE] Build: InitializeHostBuilderContext | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             InitializeHostBuilderContext();
+            Console.WriteLine($"[OOM-TRACE] Build: InitializeAppConfiguration | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             InitializeAppConfiguration();
+            Console.WriteLine($"[OOM-TRACE] Build: InitializeServiceProvider | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             InitializeServiceProvider();
+            Console.WriteLine($"[OOM-TRACE] Build: ResolveHost | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
 
             return ResolveHost(_appServices, diagnosticListener);
         }
@@ -335,6 +349,8 @@ namespace Microsoft.Extensions.Hosting
         {
             var services = new ServiceCollection();
 
+            Console.WriteLine($"[OOM-TRACE] InitializeServiceProvider: PopulateServiceCollection | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             PopulateServiceCollection(
                 services,
                 _hostBuilderContext!,
@@ -348,11 +364,17 @@ namespace Microsoft.Extensions.Hosting
                 configureServicesAction(_hostBuilderContext!, services);
             }
 
+            Console.WriteLine($"[OOM-TRACE] InitializeServiceProvider: _defaultProviderFactoryUsed={_defaultProviderFactoryUsed}, IsDevelopment={_hostBuilderContext!.HostingEnvironment.IsDevelopment()}");
+            Console.Out.Flush();
             if (_hostBuilderContext!.HostingEnvironment.IsDevelopment() && _defaultProviderFactoryUsed)
             {
+                Console.WriteLine($"[OOM-TRACE] InitializeServiceProvider: overriding with dev DefaultServiceProviderFactory | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+                Console.Out.Flush();
                 _serviceProviderFactory = new ServiceFactoryAdapter<IServiceCollection>(new DefaultServiceProviderFactory(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }));
             }
 
+            Console.WriteLine($"[OOM-TRACE] InitializeServiceProvider: CreateBuilder | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             object containerBuilder = _serviceProviderFactory.CreateBuilder(services);
 
             foreach (IConfigureContainerAdapter containerAction in _configureContainerActions)
@@ -360,7 +382,11 @@ namespace Microsoft.Extensions.Hosting
                 containerAction.ConfigureContainer(_hostBuilderContext!, containerBuilder);
             }
 
+            Console.WriteLine($"[OOM-TRACE] InitializeServiceProvider: CreateServiceProvider | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             _appServices = _serviceProviderFactory.CreateServiceProvider(containerBuilder);
+            Console.WriteLine($"[OOM-TRACE] InitializeServiceProvider: done | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
         }
 
         internal static IHost ResolveHost(IServiceProvider serviceProvider, DiagnosticListener diagnosticListener)

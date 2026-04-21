@@ -34,13 +34,22 @@ namespace Microsoft.Extensions.Hosting.Internal
             if (_serviceProviderFactory == null)
             {
                 Debug.Assert(_factoryResolver != null && _contextResolver != null);
-                _serviceProviderFactory = _factoryResolver(_contextResolver());
+                Console.WriteLine($"[OOM-TRACE] ServiceFactoryAdapter.CreateBuilder: resolving context | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+                Console.Out.Flush();
+                var context = _contextResolver();
+                Console.WriteLine($"[OOM-TRACE] ServiceFactoryAdapter.CreateBuilder: calling factory resolver | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+                Console.Out.Flush();
+                _serviceProviderFactory = _factoryResolver(context);
 
                 if (_serviceProviderFactory == null)
                 {
                     throw new InvalidOperationException(SR.ResolverReturnedNull);
                 }
+                Console.WriteLine($"[OOM-TRACE] ServiceFactoryAdapter.CreateBuilder: factory resolved | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+                Console.Out.Flush();
             }
+            Console.WriteLine($"[OOM-TRACE] ServiceFactoryAdapter.CreateBuilder: calling CreateBuilder on factory | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             return _serviceProviderFactory.CreateBuilder(services);
         }
 
@@ -51,6 +60,8 @@ namespace Microsoft.Extensions.Hosting.Internal
                 throw new InvalidOperationException(SR.CreateBuilderCallBeforeCreateServiceProvider);
             }
 
+            Console.WriteLine($"[OOM-TRACE] ServiceFactoryAdapter.CreateServiceProvider: calling factory | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             return _serviceProviderFactory.CreateServiceProvider((TContainerBuilder)containerBuilder);
         }
     }

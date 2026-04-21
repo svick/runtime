@@ -81,12 +81,26 @@ namespace Microsoft.Extensions.Hosting
         /// <returns>The <see cref="IHostBuilder"/>.</returns>
         public static IHostBuilder UseDefaultServiceProvider(this IHostBuilder hostBuilder, Action<HostBuilderContext, ServiceProviderOptions> configure)
         {
-            return hostBuilder.UseServiceProviderFactory(context =>
+            Console.WriteLine($"[OOM-TRACE] UseDefaultServiceProvider start | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
+            var newHostBuilder = hostBuilder.UseServiceProviderFactory(context =>
             {
+                Console.WriteLine($"[OOM-TRACE] UseDefaultServiceProvider lambda: creating ServiceProviderOptions | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+                Console.Out.Flush();
                 var options = new ServiceProviderOptions();
+                Console.WriteLine($"[OOM-TRACE] UseDefaultServiceProvider lambda: calling configure delegate | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+                Console.Out.Flush();
                 configure(context, options);
-                return new DefaultServiceProviderFactory(options);
+                Console.WriteLine($"[OOM-TRACE] UseDefaultServiceProvider lambda: creating DefaultServiceProviderFactory | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+                Console.Out.Flush();
+                var factory = new DefaultServiceProviderFactory(options);
+                Console.WriteLine($"[OOM-TRACE] UseDefaultServiceProvider lambda: done | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+                Console.Out.Flush();
+                return factory;
             });
+            Console.WriteLine($"[OOM-TRACE] UseDefaultServiceProvider: done | GC={GC.GetTotalMemory(false):N0} WS={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
+            return newHostBuilder;
         }
 
         /// <summary>

@@ -464,6 +464,8 @@ namespace Microsoft.Extensions.Hosting.Tests
         [Fact]
         public void ConfigureDefaultServiceProvider()
         {
+            Console.WriteLine($"[OOM-TRACE] ConfigureDefaultServiceProvider START - GC.GetTotalMemory={GC.GetTotalMemory(false):N0}, WorkingSet={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             var hostBuilder = new HostBuilder()
                 .ConfigureServices((s) =>
                 {
@@ -563,6 +565,8 @@ namespace Microsoft.Extensions.Hosting.Tests
         [Fact]
         public void ScopeValidationNotEnabledInDevelopmentWithServiceProviderChanges()
         {
+            Console.WriteLine($"[OOM-TRACE] ScopeValidationNotEnabled START - GC.GetTotalMemory={GC.GetTotalMemory(false):N0}, WorkingSet={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             using var host = new HostBuilder()
                 .UseEnvironment(Environments.Development)
                 .ConfigureServices(serices =>
@@ -580,6 +584,8 @@ namespace Microsoft.Extensions.Hosting.Tests
         [Fact]
         public void ScopeValidationtEnabledInDevelopmentWithServiceProviderChanges()
         {
+            Console.WriteLine($"[OOM-TRACE] ScopeValidationtEnabled START - GC.GetTotalMemory={GC.GetTotalMemory(false):N0}, WorkingSet={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             var host = new HostBuilder()
                 .UseEnvironment(Environments.Development)
                 .ConfigureServices(services =>
@@ -597,6 +603,8 @@ namespace Microsoft.Extensions.Hosting.Tests
         [Fact]
         public void ValidateOnBuildNotEnabledInDevelopmentWithServiceProviderChanges()
         {
+            Console.WriteLine($"[OOM-TRACE] ValidateOnBuildNotEnabled START - GC.GetTotalMemory={GC.GetTotalMemory(false):N0}, WorkingSet={Environment.WorkingSet:N0}");
+            Console.Out.Flush();
             using var host = new HostBuilder()
                 .UseEnvironment(Environments.Development)
                 .ConfigureServices(serices =>
