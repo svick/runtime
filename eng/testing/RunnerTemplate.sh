@@ -223,8 +223,17 @@ if [ -n "$HELIX_WORKITEM_PAYLOAD" ]; then
   if [[ $test_exitcode -ne 1 ]]; then
     dmesg | tail -50
 
-    # For exit code 137 (SIGKILL, typically OOM killer), check cgroup v2 memory.events
-    # as a fallback to confirm whether the OOM killer fired (e.g., if dmesg is unavailable).
+    # On macOS, log system memory info for abrupt failures to help diagnose memory pressure.
+    # macOS has no cgroups, so we rely on system-wide stats.
+    if [[ $system_name == "Darwin" ]]; then
+      echo "=== macOS memory diagnostics ==="
+      echo "Physical memory: $(sysctl -n hw.memsize 2>/dev/null | awk '{printf "%.0f MB", $1/1048576}' 2>/dev/null)"
+      sysctl vm.swapusage 2>/dev/null
+      vm_stat 2>/dev/null
+    fi
+
+    # For exit code 137 (SIGKILL, typically OOM killer), dump cgroup v2 memory diagnostics
+    # to help determine whether the process was killed due to a cgroup memory limit.
     # Silent no-op on macOS, cgroup v1, or any system without /proc/self/cgroup.
     if [[ $test_exitcode -eq 137 && -f /proc/self/cgroup ]]; then
       # /proc/self/cgroup contains colon-delimited lines; on cgroup v2, a single line like:
@@ -232,14 +241,36 @@ if [ -n "$HELIX_WORKITEM_PAYLOAD" ]; then
       # Extract field 3 (the cgroup path) from the line where field1=="0" and field2==""
       cg_path=$(awk -F: '$1=="0" && $2=="" {print $3; exit}' /proc/self/cgroup)
       cg_path=${cg_path#/}  # strip leading slash for path concatenation
-      # Prefer the process-specific cgroup path (more relevant), fall back to root cgroup
-      for memevents in ${cg_path:+/sys/fs/cgroup/$cg_path/memory.events} /sys/fs/cgroup/memory.events; do
-        if [[ -f "$memevents" ]]; then
-          echo "cgroup memory.events ($memevents):"
-          cat "$memevents"
+
+      # Walk up the cgroup hierarchy from the process's leaf cgroup to find the nearest
+      # ancestor that has memory controller files. In Docker containers, the memory
+      # controller is often on the container cgroup rather than on nested slices within it.
+      cg_dir=""
+      candidate="$cg_path"
+      while [[ -n "$candidate" ]]; do
+        if [[ -f "/sys/fs/cgroup/$candidate/memory.events" ]]; then
+          cg_dir="/sys/fs/cgroup/$candidate"
           break
         fi
+        parent="${candidate%/*}"
+        # Stop if we can't go higher (single-component path)
+        [[ "$parent" == "$candidate" ]] && break
+        candidate="$parent"
       done
+      # Fall back to root cgroup
+      if [[ -z "$cg_dir" && -f /sys/fs/cgroup/memory.events ]]; then
+        cg_dir="/sys/fs/cgroup"
+      fi
+
+      if [[ -n "$cg_dir" ]]; then
+        echo "=== cgroup memory diagnostics ($cg_dir) ==="
+        for memfile in memory.max memory.peak memory.current memory.events memory.events.local; do
+          if [[ -f "$cg_dir/$memfile" ]]; then
+            echo "$memfile:"
+            cat "$cg_dir/$memfile"
+          fi
+        done
+      fi
     fi
   fi
 
