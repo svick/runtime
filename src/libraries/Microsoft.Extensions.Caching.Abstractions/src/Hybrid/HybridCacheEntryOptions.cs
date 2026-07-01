@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Generic;
 using Microsoft.Extensions.Caching.Distributed;
 
 namespace Microsoft.Extensions.Caching.Hybrid;
@@ -102,6 +103,29 @@ public sealed class HybridCacheEntryOptions
     }
 
     /// <summary>
+    /// Gets or sets the tags to associate with the cache entry.
+    /// </summary>
+    /// <remarks>
+    /// A factory callback can set this property to associate tags with the entry based on the
+    /// value it produced (for example, identifiers discovered while loading the data). The tags
+    /// specified here are combined with any tags supplied directly to the
+    /// <see cref="HybridCache.GetOrCreateAsync{TState, T}(string, TState, Func{TState, HybridCacheEntryOptions, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask{T}}, HybridCacheEntryOptions?, IEnumerable{string}?, System.Threading.CancellationToken)"/>
+    /// call; the resulting entry is associated with the union of both sets.
+    /// </remarks>
+    public IEnumerable<string>? Tags
+    {
+        get;
+        set
+        {
+            if (!ReferenceEquals(field, value))
+            {
+                field = value;
+                BumpRevision();
+            }
+        }
+    }
+
+    /// <summary>
     /// Gets a value that increments whenever a property on this instance is changed.
     /// </summary>
     /// <remarks>
@@ -128,7 +152,9 @@ public sealed class HybridCacheEntryOptions
 
     internal HybridCacheEntryOptions Clone()
     {
-        // shallow copy is sufficient: all settable state is value-typed and _dc is recomputable.
+        // shallow copy is sufficient: value-typed state is copied directly, the Tags reference is
+        // shared (callers/factories assign a new collection rather than mutating in place), and _dc
+        // is recomputable.
         var clone = (HybridCacheEntryOptions)MemberwiseClone();
         clone._dc = null;
         return clone;

@@ -172,10 +172,14 @@ public abstract class HybridCache
                 | HybridCacheEntryFlags.DisableDistributedCacheWrite;
             if ((factoryOptions.Flags & BothWritesDisabled) != BothWritesDisabled)
             {
+                // The entry is associated with the union of the caller-supplied tags and any tags the
+                // factory set on the options it received.
+                IEnumerable<string>? effectiveTags = CombineTags(tags, factoryOptions.Tags);
+
                 // Cancellation of the caller should not abort the write: the factory has already
                 // produced a value that we are about to return; canceling SetAsync here would
                 // discard a completed result and force the next caller to re-run the factory.
-                await SetAsync(key, value, factoryOptions, tags, CancellationToken.None).ConfigureAwait(false);
+                await SetAsync(key, value, factoryOptions, effectiveTags, CancellationToken.None).ConfigureAwait(false);
             }
         }
 
@@ -292,6 +296,40 @@ public abstract class HybridCache
     {
         public static readonly Func<Func<HybridCacheEntryOptions, CancellationToken, ValueTask<T>>, HybridCacheEntryOptions, CancellationToken, ValueTask<T>> Instance =
             static (callback, opts, ct) => callback(opts, ct);
+    }
+
+    private static IEnumerable<string>? CombineTags(IEnumerable<string>? callerTags, IEnumerable<string>? factoryTags)
+    {
+        if (factoryTags is null)
+        {
+            return callerTags;
+        }
+
+        if (callerTags is null)
+        {
+            return factoryTags;
+        }
+
+        // Union both sets, removing duplicates while preserving encounter order (caller tags first).
+        var combined = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string tag in callerTags)
+        {
+            if (seen.Add(tag))
+            {
+                combined.Add(tag);
+            }
+        }
+
+        foreach (string tag in factoryTags)
+        {
+            if (seen.Add(tag))
+            {
+                combined.Add(tag);
+            }
+        }
+
+        return combined;
     }
 
     private sealed class DefaultImplState<TState, T>

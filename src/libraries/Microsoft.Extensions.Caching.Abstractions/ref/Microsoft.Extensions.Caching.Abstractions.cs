@@ -181,6 +181,7 @@ namespace Microsoft.Extensions.Caching.Hybrid
         public System.TimeSpan? LocalCacheExpiration { get; set; }
         public HybridCacheEntryFlags? Flags { get; set; }
         public long? LocalSize { get; set; }
+        public System.Collections.Generic.IEnumerable<string>? Tags { get; set; }
         public int Revision { get { throw null; } }
     }
     [System.Flags]

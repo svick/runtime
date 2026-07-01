@@ -206,6 +206,59 @@ public class HybridCacheTests
         Assert.Equal(tags, entry.Tags!.ToArray());
     }
 
+    [Fact]
+    public async Task FactoryComputedTags_ArePropagatedToCacheWrite()
+    {
+        var cache = new FakeHybridCache();
+
+        await cache.GetOrCreateAsync(
+            "k", state: 0,
+            factory: (_, opts, _) =>
+            {
+                opts.Tags = ["customer-1", "group-9"];
+                return new ValueTask<int>(1);
+            });
+
+        StoredEntry entry = cache.Store["k"];
+        Assert.NotNull(entry.Tags);
+        Assert.Equal(new[] { "customer-1", "group-9" }, entry.Tags!.ToArray());
+    }
+
+    [Fact]
+    public async Task FactoryComputedTags_AreUnionedWithCallerTags()
+    {
+        var cache = new FakeHybridCache();
+
+        await cache.GetOrCreateAsync(
+            "k", state: 0,
+            factory: (_, opts, _) =>
+            {
+                // "a" duplicates a caller tag and should be de-duplicated.
+                opts.Tags = ["a", "customer-1"];
+                return new ValueTask<int>(1);
+            },
+            tags: ["a", "b"]);
+
+        StoredEntry entry = cache.Store["k"];
+        Assert.NotNull(entry.Tags);
+        Assert.Equal(new[] { "a", "b", "customer-1" }, entry.Tags!.ToArray());
+    }
+
+    [Fact]
+    public async Task FactoryLeavingTagsUntouched_UsesOnlyCallerTags()
+    {
+        var cache = new FakeHybridCache();
+
+        await cache.GetOrCreateAsync(
+            "k", state: 0,
+            factory: (_, _, _) => new ValueTask<int>(1),
+            tags: ["a", "b"]);
+
+        StoredEntry entry = cache.Store["k"];
+        Assert.NotNull(entry.Tags);
+        Assert.Equal(new[] { "a", "b" }, entry.Tags!.ToArray());
+    }
+
     private sealed record StoredEntry(object? Value, HybridCacheEntryOptions? Options, IEnumerable<string>? Tags);
 
     /// <summary>
