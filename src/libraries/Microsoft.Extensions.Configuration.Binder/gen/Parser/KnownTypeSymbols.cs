@@ -67,6 +67,7 @@ namespace Microsoft.Extensions.Configuration.Binder.SourceGeneration
         public INamedTypeSymbol? ParameterInfo { get; }
         public INamedTypeSymbol? Delegate   { get; }
         public INamedTypeSymbol? NotNullIfNotNullAttribute { get; }
+        public INamedTypeSymbol? UnsafeAccessorAttribute { get; }
 
         public KnownTypeSymbols(CSharpCompilation compilation)
         {
@@ -140,6 +141,10 @@ namespace Microsoft.Extensions.Configuration.Binder.SourceGeneration
 
             // Only generate nullable attributes if available
             NotNullIfNotNullAttribute = compilation.GetBestTypeByMetadataName("System.Diagnostics.CodeAnalysis.NotNullIfNotNullAttribute");
+
+            // Used to decide whether generated code can set init-only/required members and bypass the required-member
+            // check via [UnsafeAccessor] (available on .NET 8+) instead of falling back to reflection.
+            UnsafeAccessorAttribute = compilation.GetBestTypeByMetadataName("System.Runtime.CompilerServices.UnsafeAccessorAttribute");
         }
     }
 }

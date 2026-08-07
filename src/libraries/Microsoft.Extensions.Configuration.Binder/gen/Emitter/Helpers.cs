@@ -48,6 +48,9 @@ namespace Microsoft.Extensions.Configuration.Binder.SourceGeneration
                 public const string sectionPath = "section.Path";
                 public const string sectionValue = "section.Value";
 
+                public const string InstanceMemberBindingFlags =
+                    "global::System.Reflection.BindingFlags.Instance | global::System.Reflection.BindingFlags.Public | global::System.Reflection.BindingFlags.NonPublic";
+
                 public static string GeneratedCodeAnnotation = $@"[GeneratedCode(""{s_assemblyName.Name}"", ""{s_assemblyName.Version}"")]";
             }
 
@@ -58,6 +61,8 @@ namespace Microsoft.Extensions.Configuration.Binder.SourceGeneration
                 public const string HashSetOfString = "global::System.Collections.Generic.HashSet<string>";
                 public const string LazyHashSetOfString = "global::System.Lazy<global::System.Collections.Generic.HashSet<string>>";
                 public const string ListOfString = "global::System.Collections.Generic.List<string>";
+                public const string UnsafeAccessorAttribute = "global::System.Runtime.CompilerServices.UnsafeAccessorAttribute";
+                public const string UnsafeAccessorKind = "global::System.Runtime.CompilerServices.UnsafeAccessorKind";
             }
 
             private static class Identifier

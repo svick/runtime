@@ -648,6 +648,7 @@ namespace Microsoft.Extensions.Configuration.Binder.SourceGeneration
                 string? initExceptionMessage = null;
 
                 IMethodSymbol? ctor = null;
+                bool hasExplicitParameterlessCtor = false;
 
                 if (!(typeSymbol.IsAbstract || typeSymbol.TypeKind is TypeKind.Interface))
                 {
@@ -678,6 +679,12 @@ namespace Microsoft.Extensions.Configuration.Binder.SourceGeneration
                             }
                         }
                     }
+
+                    // A struct's synthesized parameterless constructor is implicitly declared; an author-written one is
+                    // not. This matters for value-type construction that must bypass the required-member check: default(T)
+                    // is only correct for the synthesized constructor (which does nothing), while an explicit constructor
+                    // must actually run (like Activator.CreateInstance does for the reflection binder).
+                    hasExplicitParameterlessCtor = parameterlessCtor is { IsImplicitlyDeclared: false };
 
                     bool hasPublicParameterlessCtor = typeSymbol.IsValueType || parameterlessCtor is not null;
                     if (!hasPublicParameterlessCtor && hasMultipleParameterizedCtors)
@@ -715,7 +722,7 @@ namespace Microsoft.Extensions.Configuration.Binder.SourceGeneration
 
                 Dictionary<string, PropertySpec>? properties = null;
                 HashSet<string>? reportedUnsupportedProperties = null;
-                List<string>? requiredMembersWithNonPublicSetter = null;
+                bool hasRequiredMember = false;
 
                 INamedTypeSymbol? current = typeSymbol;
                 while (current is not null)
@@ -726,6 +733,7 @@ namespace Microsoft.Extensions.Configuration.Binder.SourceGeneration
                         if (member is IPropertySymbol { IsIndexer: false, IsImplicitlyDeclared: false } property)
                         {
                             string propertyName = property.Name;
+                            hasRequiredMember |= property.IsRequired;
                             bool isDuplicateOrOverride = property.IsOverride || properties?.ContainsKey(propertyName) is true;
 
                             if (IsUnsupportedType(property.Type))
@@ -756,19 +764,27 @@ namespace Microsoft.Extensions.Configuration.Binder.SourceGeneration
                             string configKeyName = attributeData?.ConstructorArguments.FirstOrDefault().Value as string ?? propertyName;
                             bool isIgnored = attributes.Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, _typeSymbols.ConfigurationIgnoreAttribute));
 
+                            bool isInherited = !SymbolEqualityComparer.Default.Equals(property.ContainingType, typeSymbol);
+
+                            // For an inherited property, capture its declaring (base) type so an [UnsafeAccessor] setter
+                            // can target it directly - but only when that type can be named in the generated code (is
+                            // accessible) and is non-generic (pre-.NET 9 [UnsafeAccessor] does not support generics).
+                            // Otherwise the reflection fallback, which searches base types, is used.
+                            TypeRef? declaringTypeRef = null;
+                            if (isInherited &&
+                                property.ContainingType is INamedTypeSymbol { IsGenericType: false } declaringType &&
+                                _typeSymbols.Compilation.IsSymbolAccessibleWithin(declaringType, _typeSymbols.Compilation.Assembly))
+                            {
+                                declaringTypeRef = new TypeRef(declaringType);
+                            }
+
                             PropertySpec spec = new(property, propertyTypeRef)
                             {
                                 ConfigurationKeyName = configKeyName,
                                 IsIgnored = isIgnored,
+                                IsInherited = isInherited,
+                                DeclaringTypeRef = declaringTypeRef,
                             };
-
-                            // A required member with a non-public setter (SetOnInit is false for a required property
-                            // only when its setter is not public) cannot be assigned in the object initializer the
-                            // generator emits, which would produce CS9035 unless the constructor sets required members.
-                            if (property.IsRequired && !spec.SetOnInit && !ctorSetsRequiredMembers)
-                            {
-                                (requiredMembersWithNonPublicSetter ??= new()).Add(propertyName);
-                            }
 
                             (properties ??= new(StringComparer.OrdinalIgnoreCase))[propertyName] = spec;
                         }
@@ -827,21 +843,34 @@ namespace Microsoft.Extensions.Configuration.Binder.SourceGeneration
                     static string FormatParams(List<string> names) => string.Join(",", names);
                 }
 
-                // If the type has a required member the generator cannot set (non-public setter, constructor does not
-                // set required members), it cannot be constructed without producing CS9035. Emit a diagnostic and mark
-                // the type non-constructible so the callsite throws at run time instead of emitting uncompilable code.
-                if (requiredMembersWithNonPublicSetter is not null && initExceptionMessage is null)
-                {
-                    initExceptionMessage = string.Format(Emitter.ExceptionMessages.RequiredMemberWithNonPublicSetter, typeSymbol.GetFullName(), string.Join(",", requiredMembersWithNonPublicSetter));
-                    RecordTypeDiagnostic(typeParseInfo, DiagnosticDescriptors.RequiredMemberWithNonPublicSetter);
-                }
+                // A type with required members not satisfied by a [SetsRequiredMembers] constructor cannot be created
+                // with a plain new T(...). It is instead created in a way that bypasses the required-member check, then
+                // the required members are set post-construction (only when their config key is present), matching the
+                // reflection binder and preserving their defaults for absent keys. Reference types, value types with a
+                // parameterized constructor, and value types with an explicit parameterless constructor go through a
+                // constructor accessor (so constructor arguments are passed and any author-written constructor runs). A
+                // value type whose only parameterless constructor is the synthesized one uses default(T), which also
+                // bypasses the check and is equivalent to running that do-nothing constructor.
+                bool needsRequiredMemberBypass = hasRequiredMember && !ctorSetsRequiredMembers;
+                bool constructValueTypeWithDefault = needsRequiredMemberBypass && typeSymbol.IsValueType &&
+                    initializationStrategy is ObjectInstantiationStrategy.ParameterlessConstructor && !hasExplicitParameterlessCtor;
+                bool constructionRequiresAccessor = needsRequiredMemberBypass && !constructValueTypeWithDefault;
+
+                // [UnsafeAccessor] is available on .NET 8+. Generic types are excluded because pre-.NET 9 UnsafeAccessor
+                // does not support them; those (and downlevel frameworks) fall back to reflection for the same behavior.
+                bool canUseUnsafeAccessors = _typeSymbols.UnsafeAccessorAttribute is not null && !typeSymbol.IsGenericType;
 
                 return new ObjectSpec(
                     typeSymbol,
                     initializationStrategy,
                     properties: properties?.Values.ToImmutableEquatableArray(),
                     constructorParameters: ctorParams?.ToImmutableEquatableArray(),
-                    initExceptionMessage);
+                    initExceptionMessage)
+                {
+                    CanUseUnsafeAccessors = canUseUnsafeAccessors,
+                    ConstructionRequiresAccessor = constructionRequiresAccessor,
+                    ConstructValueTypeWithDefault = constructValueTypeWithDefault,
+                };
             }
 
             private static UnsupportedTypeSpec CreateUnsupportedCollectionSpec(TypeParseInfo typeParseInfo)
