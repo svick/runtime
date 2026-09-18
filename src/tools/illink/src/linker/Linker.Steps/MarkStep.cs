@@ -87,6 +87,7 @@ namespace Mono.Linker.Steps
             }
         }
         readonly HashSet<TypeDefinition> _entireTypesMarked;
+        readonly HashSet<IMemberDefinition> _reflectionVisibleMemberSignaturesBeingProcessed;
         DynamicallyAccessedMembersTypeHierarchy? _dynamicallyAccessedMembersTypeHierarchy;
 
         internal DynamicallyAccessedMembersTypeHierarchy DynamicallyAccessedMembersTypeHierarchy
@@ -232,6 +233,7 @@ namespace Mono.Linker.Steps
             _unreachableBodies = new List<(MethodBody, MessageOrigin)>();
             _pending_isinst_instr = new List<(TypeDefinition, MethodBody, Instruction)>();
             _entireTypesMarked = new HashSet<TypeDefinition>();
+            _reflectionVisibleMemberSignaturesBeingProcessed = new HashSet<IMemberDefinition>();
             _compilerGeneratedMethodRequiresScanner = new Dictionary<MethodBody, bool>();
             _typeMapHandler = new TypeMapHandler();
         }
@@ -2044,14 +2046,26 @@ namespace Mono.Linker.Steps
                 if (!Annotations.IsReflectionUsed(methodDefinition.DeclaringType))
                     MarkTypeVisibleToReflection(methodDefinition.DeclaringType, new DependencyInfo(DependencyKind.DeclaringType, methodDefinition), origin);
 
+                // Generic argument data flow can make the same member reflection-visible again through
+                // requirements on a self-referential signature.
+                if (!_reflectionVisibleMemberSignaturesBeingProcessed.Add(methodDefinition))
+                    return;
+
                 // On a reflectable method, perform generic data flow for the return type and all the parameter types
                 // This is a compensation for the DI issue described in https://github.com/dotnet/runtime/issues/81358
-                var methodOrigin = new MessageOrigin(methodDefinition);
-                GenericArgumentDataFlow.ProcessGenericArgumentDataFlow(in methodOrigin, this, Context, methodDefinition.ReturnType, suppressTrimAnalysisWarnings: suppressTrimAnalysisWarnings);
-
-                foreach (var parameter in methodDefinition.GetMetadataParameters())
+                try
                 {
-                    GenericArgumentDataFlow.ProcessGenericArgumentDataFlow(in methodOrigin, this, Context, parameter.ParameterType, suppressTrimAnalysisWarnings: suppressTrimAnalysisWarnings);
+                    var methodOrigin = new MessageOrigin(methodDefinition);
+                    GenericArgumentDataFlow.ProcessGenericArgumentDataFlow(in methodOrigin, this, Context, methodDefinition.ReturnType, suppressTrimAnalysisWarnings: suppressTrimAnalysisWarnings);
+
+                    foreach (var parameter in methodDefinition.GetMetadataParameters())
+                    {
+                        GenericArgumentDataFlow.ProcessGenericArgumentDataFlow(in methodOrigin, this, Context, parameter.ParameterType, suppressTrimAnalysisWarnings: suppressTrimAnalysisWarnings);
+                    }
+                }
+                finally
+                {
+                    _reflectionVisibleMemberSignaturesBeingProcessed.Remove(methodDefinition);
                 }
             }
         }
@@ -2082,10 +2096,20 @@ namespace Mono.Linker.Steps
                 if (!Annotations.IsReflectionUsed(fieldDefinition.DeclaringType))
                     MarkTypeVisibleToReflection(fieldDefinition.DeclaringType, new DependencyInfo(DependencyKind.DeclaringType, fieldDefinition), origin);
 
+                if (!_reflectionVisibleMemberSignaturesBeingProcessed.Add(fieldDefinition))
+                    return;
+
                 // On a reflectable field, perform generic data flow for the field's type
                 // This is a compensation for the DI issue described in https://github.com/dotnet/runtime/issues/81358
-                var fieldOrigin = new MessageOrigin(fieldDefinition);
-                GenericArgumentDataFlow.ProcessGenericArgumentDataFlow(in fieldOrigin, this, Context, fieldDefinition.FieldType, suppressTrimAnalysisWarnings: suppressTrimAnalysisWarnings);
+                try
+                {
+                    var fieldOrigin = new MessageOrigin(fieldDefinition);
+                    GenericArgumentDataFlow.ProcessGenericArgumentDataFlow(in fieldOrigin, this, Context, fieldDefinition.FieldType, suppressTrimAnalysisWarnings: suppressTrimAnalysisWarnings);
+                }
+                finally
+                {
+                    _reflectionVisibleMemberSignaturesBeingProcessed.Remove(fieldDefinition);
+                }
             }
         }
 
