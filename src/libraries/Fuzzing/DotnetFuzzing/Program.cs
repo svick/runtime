@@ -332,6 +332,10 @@ public static class Program
         // Make it easier to distinguish between long-running CI jobs and short-lived test submissions.
         string nameSuffix = Environment.GetEnvironmentVariable("TF_BUILD") is null ? "-local" : "";
 
+        string? sdlWorkItemProperty = fuzzer.SdlWorkItemId is int sdlWorkItemId
+            ? $"\"SdlWorkItemId\": {sdlWorkItemId},"
+            : null;
+
         return
             $$$"""
             {
@@ -339,6 +343,7 @@ public static class Program
               "Entries": [
                 {
                   "JobNotificationEmail": "dotnet-fuzz-updates@microsoft.com",
+                  {{{sdlWorkItemProperty}}}
                   "Skip": false,
                   "Fuzzer": {
                     "$type": "libfuzzer",

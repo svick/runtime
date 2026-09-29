@@ -11,6 +11,7 @@ namespace DotnetFuzzing.Fuzzers;
 
 internal sealed class WebSocketFuzzer : IFuzzer
 {
+    public int? SdlWorkItemId => 3064892;
     public string[] TargetAssemblies => ["System.Net.WebSockets"];
     public string[] TargetCoreLibPrefixes => [];
 

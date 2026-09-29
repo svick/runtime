@@ -8,6 +8,7 @@ namespace DotnetFuzzing.Fuzzers;
 
 internal sealed class HttpHeadersFuzzer : IFuzzer
 {
+    public int? SdlWorkItemId => 3064892;
     public string[] TargetAssemblies { get; } = ["System.Net.Http"];
     public string[] TargetCoreLibPrefixes => [];
 

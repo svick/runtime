@@ -22,6 +22,9 @@ internal interface IFuzzer
     /// <summary>Optional name of the directory to use as an initial corpus for the fuzzer.</summary>
     string? Corpus => null;
 
+    /// <summary>Optional SDL work item ID to associate with the OneFuzz claim.</summary>
+    int? SdlWorkItemId => null;
+
     /// <summary>Entry point for the fuzzer. Should exercise code paths in <see cref="TargetAssemblies"/> and/or <see cref="TargetCoreLibPrefixes"/>.</summary>
     void FuzzTarget(ReadOnlySpan<byte> bytes);
 }

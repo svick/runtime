@@ -9,6 +9,7 @@ namespace DotnetFuzzing.Fuzzers
 {
     internal sealed class SslStreamClientHelloFuzzer : IFuzzer
     {
+        public int? SdlWorkItemId => 3064892;
         public string[] TargetAssemblies => ["System.Net.Security"];
 
         public string[] TargetCoreLibPrefixes => [];

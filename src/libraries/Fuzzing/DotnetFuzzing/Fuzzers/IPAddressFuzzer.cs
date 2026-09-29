@@ -12,6 +12,7 @@ namespace DotnetFuzzing.Fuzzers
 {
     internal sealed class IPAddressFuzzer : IFuzzer
     {
+        public int? SdlWorkItemId => 3064892;
         public string[] TargetAssemblies => ["System.Net.Primitives", "System.Private.Uri"];
         public string[] TargetCoreLibPrefixes => [];
 
