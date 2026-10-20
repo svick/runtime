@@ -9,6 +9,7 @@ namespace DotnetFuzzing.Fuzzers;
 
 internal sealed class ZipArchiveFuzzer : IFuzzer
 {
+    public int? SdlWorkItemId => 3064892;
     public string[] TargetAssemblies { get; } = ["System.IO.Compression"];
     public string[] TargetCoreLibPrefixes => [];
     public string Corpus => "ziparchive";

@@ -15,6 +15,7 @@ namespace DotnetFuzzing.Fuzzers;
 [UnsupportedOSPlatform("browser")]
 internal sealed class ZipEncryptionStreamFuzzer : IFuzzer
 {
+    public int? SdlWorkItemId => 3064892;
     public string[] TargetAssemblies { get; } = ["System.IO.Compression"];
     public string[] TargetCoreLibPrefixes => [];
 
